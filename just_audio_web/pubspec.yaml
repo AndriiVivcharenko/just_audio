@@ -8,7 +8,8 @@ flutter:
     platforms:
       web:
         pluginClass: JustAudioPlugin
-        fileName: just_audio_web_audio_player.dart
+        fileName: just_audio_web.dart
+#        fileName: just_audio_web_audio_player.dart
 
 dependencies:
 #  just_audio_platform_interface: ^4.2.1
