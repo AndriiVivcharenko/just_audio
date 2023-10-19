@@ -8,16 +8,27 @@ flutter:
     platforms:
       web:
         pluginClass: JustAudioPlugin
-        fileName: just_audio_web.dart
+        fileName: just_audio_web_audio_player.dart
 
 dependencies:
-  just_audio_platform_interface: ^4.2.1
-  # just_audio_platform_interface:
-  #   path: ../just_audio_platform_interface
+#  just_audio_platform_interface: ^4.2.1
+#  just_audio_platform_interface:
+#    path: ../just_audio_platform_interface
+  just_audio_platform_interface:
+    git:
+      url: https://github.com/spynai/just_audio.git
+      path: just_audio_platform_interface
+      ref: ios_web
   flutter:
     sdk: flutter
   flutter_web_plugins:
     sdk: flutter
+#  soundpool:
+#    path: ../../soundpool/soundpool
+  soundpool:
+    git:
+      url: https://github.com/spynai/soundpool
+      path: soundpool
 
 dev_dependencies:
   flutter_lints: ^2.0.1
