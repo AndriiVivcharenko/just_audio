@@ -47,8 +47,28 @@ class JustAudioPlugin extends JustAudioPlatform {
   }
 }
 
+abstract class FithubAudioPlayer extends AudioPlayerPlatform {
+  FithubAudioPlayer(String id) : super(id);
+
+  @mustCallSuper
+  Future<void> release();
+
+  /// Returns the current position of the player.
+  Duration getCurrentPosition();
+
+  /// Returns the current buffered position of the player.
+  Duration getBufferedPosition();
+
+  /// Returns the duration of the current player item or `null` if unknown.
+  Duration? getDuration();
+
+  /// Broadcasts a playback event from the platform side to the plugin side.
+  void broadcastPlaybackEvent();
+
+}
+
 /// The web impluementation of [AudioPlayerPlatform].
-abstract class JustAudioPlayer extends AudioPlayerPlatform {
+abstract class JustAudioPlayer extends FithubAudioPlayer {
   final _eventController = StreamController<PlaybackEventMessage>.broadcast();
   final _dataEventController = StreamController<PlayerDataMessage>.broadcast();
   ProcessingStateMessage _processingState = ProcessingStateMessage.idle;

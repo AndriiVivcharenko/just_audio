@@ -1,13 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_web_plugins/flutter_web_plugins.dart';
 import 'package:just_audio_platform_interface/just_audio_platform_interface.dart';
+import 'package:just_audio_web/just_audio_web.dart';
 import 'package:soundpool/soundpool.dart';
 
 class JustAudioPlugin extends JustAudioPlatform {
-  final Map<String, JustAudioPlayer> players = {};
+  final Map<String, FithubAudioPlayer> players = {};
 
   /// The entrypoint called by the generated plugin registrant.
   static void registerWith(Registrar registrar) {
@@ -21,6 +23,10 @@ class JustAudioPlugin extends JustAudioPlatform {
           code: "error",
           message: "Platform player ${request.id} already exists");
     }
+    print("defaultTargetPlatform $defaultTargetPlatform : kIsWeb $kIsWeb");
+    // final player = defaultTargetPlatform == TargetPlatform.iOS && kIsWeb
+    //     ? WebAudioAPIPlayer(id: request.id)
+    //     : Html5AudioPlayer(id: request.id);
     final player = WebAudioAPIPlayer(id: request.id);
     players[request.id] = player;
     return player;
@@ -41,12 +47,14 @@ class JustAudioPlugin extends JustAudioPlatform {
       await player.release();
     }
     players.clear();
-    await WebAudioAPIPlayer.soundpool.release();
+    for (var element in players.values) {
+      element.dispose(DisposeRequest());
+    }
     return DisposeAllPlayersResponse();
   }
 }
 
-abstract class JustAudioPlayer extends AudioPlayerPlatform {
+abstract class JustAudioPlayer extends FithubAudioPlayer {
   final _eventController = StreamController<PlaybackEventMessage>.broadcast();
   final _dataEventController = StreamController<PlayerDataMessage>.broadcast();
   ProcessingStateMessage _processingState = ProcessingStateMessage.idle;
@@ -103,11 +111,11 @@ class WebAudioAPIPlayer extends JustAudioPlayer {
   final _eventController = StreamController<PlaybackEventMessage>.broadcast();
   final _dataEventController = StreamController<PlayerDataMessage>.broadcast();
 
-  static final Soundpool soundpool = Soundpool.fromOptions(
+  final Soundpool soundpool = Soundpool.fromOptions(
       options: const SoundpoolOptions(
     webOptions: SoundpoolOptionsWeb(),
   ));
-  static final Map<String, int> _audioSourcesIds = {};
+  final Map<String, Future<int>> _audioSourcesIds = {};
 
   final Map<String, AudioSourcePlayer> _audioSourcePlayers = {};
 
@@ -215,7 +223,7 @@ class WebAudioAPIPlayer extends JustAudioPlayer {
     Future<Duration?> getDuration() async {
       return Duration(
           milliseconds: ((await soundpool
-                      .getDuration(_audioSourcesIds[uri.toString()]!)) *
+                      .getDuration(await _audioSourcesIds[uri.toString()]!)) *
                   1000)
               .toInt());
     }
@@ -223,9 +231,10 @@ class WebAudioAPIPlayer extends JustAudioPlayer {
     if (_audioSourcesIds.containsKey(uri.toString())) {
       return getDuration();
     }
-    final id = await soundpool.loadUri(uri.toString());
-    transition(ProcessingStateMessage.ready);
+    final id = soundpool.loadUri(uri.toString());
     _audioSourcesIds[uri.toString()] = id;
+    await id;
+    transition(ProcessingStateMessage.ready);
     return getDuration();
   }
 
@@ -449,6 +458,7 @@ class WebAudioAPIPlayer extends JustAudioPlayer {
     _currentAudioSourcePlayer?.pause();
     transition(ProcessingStateMessage.idle);
     _currentAudioSourcePlayer?.dispose();
+    soundpool.release();
     return await super.release();
   }
 
@@ -478,9 +488,10 @@ class WebAudioAPIPlayer extends JustAudioPlayer {
   Future<AudioSourcePlayer> decodeAudioSource(
       AudioSourceMessage audioSourceMessage) async {
     Future<int> getSourceId(String uri) async {
-      final int soundId = _audioSourcesIds[uri] ?? await soundpool.loadUri(uri);
+      final Future<int> soundId = _audioSourcesIds[uri] ?? soundpool.loadUri(uri);
       _audioSourcesIds[uri] = soundId;
-      return soundId;
+      print("decode audio source: ${await soundId} $uri");
+      return await soundId;
     }
 
     Future<int> getStreamId(int soundId) async {
@@ -744,10 +755,10 @@ abstract class UriAudioSourcePlayer extends IndexedAudioSourcePlayer {
         Timer.periodic(const Duration(milliseconds: 500), (timer) async {
       _lastPosition = Duration(
           milliseconds:
-              ((await WebAudioAPIPlayer.soundpool.getPosition(streamId)) * 1000)
+              ((await audioPlayer.soundpool.getPosition(streamId)) * 1000)
                   .toInt());
       final available =
-          await WebAudioAPIPlayer.soundpool.checkAvailability(streamId);
+          await audioPlayer.soundpool.checkAvailability(streamId);
       if (!available) {
         timer.cancel();
         await complete();
@@ -757,7 +768,7 @@ abstract class UriAudioSourcePlayer extends IndexedAudioSourcePlayer {
 
   @override
   Future<void> play() async {
-    await WebAudioAPIPlayer.soundpool.resume(streamId);
+    await audioPlayer.soundpool.resume(streamId);
     _setUpdateTime();
     _completer = Completer<dynamic>();
     await _completer!.future;
@@ -767,13 +778,13 @@ abstract class UriAudioSourcePlayer extends IndexedAudioSourcePlayer {
   @override
   Future<void> pause() async {
     _updateTimer?.cancel();
-    await WebAudioAPIPlayer.soundpool.pause(streamId);
+    await audioPlayer.soundpool.pause(streamId);
     _interruptPlay();
   }
 
   @override
   Future<void> seek(int position) async {
-    await WebAudioAPIPlayer.soundpool.seek(streamId, position / 1000);
+    await audioPlayer.soundpool.seek(streamId, position / 1000);
   }
 
   @override
@@ -809,6 +820,7 @@ abstract class UriAudioSourcePlayer extends IndexedAudioSourcePlayer {
 
   @override
   void dispose() {
+    audioPlayer.soundpool.dispose();
     _updateTimer?.cancel();
   }
 }
