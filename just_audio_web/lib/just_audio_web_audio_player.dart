@@ -820,7 +820,6 @@ abstract class UriAudioSourcePlayer extends IndexedAudioSourcePlayer {
 
   @override
   void dispose() {
-    audioPlayer.soundpool.dispose();
     _updateTimer?.cancel();
   }
 }
