@@ -23,11 +23,12 @@ class JustAudioPlugin extends JustAudioPlatform {
           code: "error",
           message: "Platform player ${request.id} already exists");
     }
-    print("defaultTargetPlatform $defaultTargetPlatform : kIsWeb $kIsWeb");
+    print("defaultTargetPlatform $defaultTargetPlatform : kIsWeb $kIsWeb request:id ${request.id}");
     // final player = defaultTargetPlatform == TargetPlatform.iOS && kIsWeb
     //     ? WebAudioAPIPlayer(id: request.id)
     //     : Html5AudioPlayer(id: request.id);
     final player = WebAudioAPIPlayer(id: request.id);
+    print("init player ${request.id}");
     players[request.id] = player;
     return player;
   }
@@ -35,8 +36,8 @@ class JustAudioPlugin extends JustAudioPlatform {
   @override
   Future<DisposePlayerResponse> disposePlayer(
       DisposePlayerRequest request) async {
-    await players[request.id]?.release();
-    players.remove(request.id);
+    print("release player ${request.id}");
+    players.remove(request.id)?.release();
     return DisposePlayerResponse();
   }
 
@@ -67,6 +68,7 @@ abstract class JustAudioPlayer extends FithubAudioPlayer {
   /// Creates a platform player with the given [id].
   JustAudioPlayer({required String id}) : super(id);
 
+  @override
   @mustCallSuper
   Future<void> release() async {
     _eventController.close();
@@ -457,8 +459,12 @@ class WebAudioAPIPlayer extends JustAudioPlayer {
   Future<void> release() async {
     _currentAudioSourcePlayer?.pause();
     transition(ProcessingStateMessage.idle);
-    _currentAudioSourcePlayer?.dispose();
-    soundpool.release();
+    for(final p in _audioSourcePlayers.entries) {
+      p.value.dispose();
+    }
+    _audioSourcePlayers.clear();
+    print("SOUNDPOOL RELEASE $_audioSourcePlayers");
+    soundpool.dispose();
     return await super.release();
   }
 
@@ -480,6 +486,7 @@ class WebAudioAPIPlayer extends JustAudioPlayer {
     if (audioSourcePlayer == null) {
       audioSourcePlayer = await decodeAudioSource(audioSourceMessage);
       _audioSourcePlayers[id] = audioSourcePlayer;
+      print("created audio source player $id - ${audioSourcePlayer.streamId} ${audioSourcePlayer.soundId}");
     }
     return audioSourcePlayer;
   }
